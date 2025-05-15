@@ -32,6 +32,12 @@ try:
 except ImportError:
     np = None  # type: ignore
 
+# Attempt to import betterproto
+try:
+    import betterproto
+except ImportError:
+    betterproto = None
+
 logger = getLogger(__name__)
 
 
@@ -56,6 +62,11 @@ class EventSerializer(JSONEncoder):
             # If so, convert it to a Python scalar using the item() method
             if np is not None and isinstance(obj, np.generic):
                 return obj.item()
+
+            # Check if betterproto is available and if the object is a betterproto message
+            if betterproto is not None and isinstance(obj, betterproto.Message):
+                # Convert betterproto messages to dict
+                return obj.to_dict()
 
             if isinstance(obj, float) and math.isnan(obj):
                 return None
