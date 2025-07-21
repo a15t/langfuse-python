@@ -560,7 +560,7 @@ def _extract_streamed_openai_response(resource, chunks):
     model, usage = None, None
 
     for chunk in chunks:
-        if _is_openai_v1():
+        if not isinstance(chunk, dict) and _is_openai_v1():
             chunk = chunk.__dict__
 
         model = model or chunk.get("model", None) or None
@@ -569,12 +569,12 @@ def _extract_streamed_openai_response(resource, chunks):
         choices = chunk.get("choices", [])
 
         for choice in choices:
-            if _is_openai_v1():
+            if not isinstance(choice, dict) and _is_openai_v1():
                 choice = choice.__dict__
             if resource.type == "chat":
                 delta = choice.get("delta", None)
 
-                if _is_openai_v1():
+                if not isinstance(delta, dict) and _is_openai_v1():
                     delta = delta.__dict__
 
                 if delta.get("role", None) is not None:
@@ -590,49 +590,45 @@ def _extract_streamed_openai_response(resource, chunks):
                     curr = completion["function_call"]
                     tool_call_chunk = delta.get("function_call", None)
 
+                    if not isinstance(tool_call_chunk, dict) and _is_openai_v1():
+                        tool_call_chunk = tool_call_chunk.__dict__
+
                     if not curr:
                         completion["function_call"] = {
-                            "name": getattr(tool_call_chunk, "name", ""),
-                            "arguments": getattr(tool_call_chunk, "arguments", ""),
+                            "name": tool_call_chunk.get("name", ""),
+                            "arguments": tool_call_chunk.get("arguments", ""),
                         }
 
                     else:
-                        curr["name"] = curr["name"] or getattr(
-                            tool_call_chunk, "name", None
-                        )
-                        curr["arguments"] += getattr(tool_call_chunk, "arguments", "")
+                        curr["name"] = curr["name"] or tool_call_chunk.get("name", None)
+                        curr["arguments"] += tool_call_chunk.get("arguments", "")
 
                 elif delta.get("tool_calls", None) is not None:
                     curr = completion["tool_calls"]
-                    tool_call_chunk = getattr(
-                        delta.get("tool_calls", None)[0], "function", None
-                    )
+                    tool_call = delta.get("tool_calls", None)[0]
+                    if not isinstance(tool_call, dict) and _is_openai_v1():
+                        tool_call = tool_call.__dict__
+                    tool_call_chunk = tool_call.get("function", None)
 
                     if not curr:
                         completion["tool_calls"] = [
                             {
-                                "name": getattr(tool_call_chunk, "name", ""),
-                                "arguments": getattr(tool_call_chunk, "arguments", ""),
+                                "name": tool_call_chunk.get("name", ""),
+                                "arguments": tool_call_chunk.get("arguments", ""),
                             }
                         ]
 
-                    elif getattr(tool_call_chunk, "name", None) is not None:
+                    elif tool_call_chunk.get("name", None) is not None:
                         curr.append(
                             {
-                                "name": getattr(tool_call_chunk, "name", None),
-                                "arguments": getattr(
-                                    tool_call_chunk, "arguments", None
-                                ),
+                                "name": tool_call_chunk.get("name", ""),
+                                "arguments": tool_call_chunk.get("arguments", ""),
                             }
                         )
 
                     else:
-                        curr[-1]["name"] = curr[-1]["name"] or getattr(
-                            tool_call_chunk, "name", None
-                        )
-                        curr[-1]["arguments"] += getattr(
-                            tool_call_chunk, "arguments", None
-                        )
+                        curr[-1]["name"] = curr[-1]["name"] or tool_call_chunk.get("name", None)
+                        curr[-1]["arguments"] += tool_call_chunk.get("arguments", None)
 
             if resource.type == "completion":
                 completion += choice.get("text", "")
